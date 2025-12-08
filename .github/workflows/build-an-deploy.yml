@@ -27,10 +27,11 @@ jobs:
         shell: bash
         run: |
           mkdir -p $HOME/maven
-          curl -L https://downloads.apache.org/maven/maven-3/3.8.8/binaries/apache-maven-3.8.8-bin.tar.gz -o maven.tar.gz
+          curl -L https://dlcdn.apache.org/maven/maven-3/3.8.8/binaries/apache-maven-3.8.8-bin.tar.gz -o maven.tar.gz
           tar -xzf maven.tar.gz -C $HOME/maven
           echo "MAVEN_HOME=$HOME/maven/apache-maven-3.8.8" >> $GITHUB_ENV
           echo "$HOME/maven/apache-maven-3.8.8/bin" >> $GITHUB_PATH
+
 
       # Build and SonarQube analysis
       - name: Build and analyze
