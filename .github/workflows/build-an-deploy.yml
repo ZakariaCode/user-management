@@ -11,84 +11,80 @@ jobs:
     runs-on: self-hosted
 
     steps:
-
       # Checkout code
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          fetch-depth: 0
 
-        # Set up JDK 21
+      # Set up JDK 21
       - name: Set up JDK 21
         uses: actions/setup-java@v1
         with:
           java-version: 21
 
-      - name: Setup Maven
-        shell: powershell
+      # Install Maven
+      - name: Install Maven
+        shell: bash
         run: |
-          echo "MAVEN_HOME=$env:USERPROFILE\maven\apache-maven-3.8.8" >> $env:GITHUB_ENV
-          echo "$env:USERPROFILE\maven\apache-maven-3.8.8\bin" >> $env:GITHUB_PATH
-        #      - name: Setup Maven
-        #        shell: powershell
-        #        run: |
-        #          Invoke-WebRequest -Uri "https://downloads.apache.org/maven/maven-3/3.8.8/binaries/apache-maven-3.8.8-bin.zip" -OutFile "maven.zip"
-        #          Expand-Archive -Path "maven.zip" -DestinationPath "$env:USERPROFILE\maven"
-        #          echo "MAVEN_HOME=$env:USERPROFILE\maven\apache-maven-3.8.8" >> $env:GITHUB_ENV
-        #          echo "$env:USERPROFILE\maven\apache-maven-3.8.8\bin" >> $env:GITHUB_PATH
+          mkdir -p $HOME/maven
+          curl -L https://downloads.apache.org/maven/maven-3/3.8.8/binaries/apache-maven-3.8.8-bin.tar.gz -o maven.tar.gz
+          tar -xzf maven.tar.gz -C $HOME/maven
+          echo "MAVEN_HOME=$HOME/maven/apache-maven-3.8.8" >> $GITHUB_ENV
+          echo "$HOME/maven/apache-maven-3.8.8/bin" >> $GITHUB_PATH
 
-        #      - name: Install Maven manually for macos runners
-        #        run: |
-        #          rm -rf $HOME/maven/apache-maven-3.8.8
-        #          curl -O https://downloads.apache.org/maven/maven-3/3.8.8/binaries/apache-maven-3.8.8-bin.tar.gz
-        #          tar -xvzf apache-maven-3.8.8-bin.tar.gz
-        #          mv apache-maven-3.8.8 $HOME/maven
-        #          echo "MAVEN_HOME=$HOME/maven" >> $GITHUB_ENV
-        #          echo "$HOME/maven/bin" >> $GITHUB_PATH
-
-        # Build and SonarQube analysis
+      # Build and SonarQube analysis
       - name: Build and analyze
+        shell: bash
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         run: |
           mvn -B verify sonar:sonar -Dsonar.project.settings=./sonar-project.properties
-        shell: cmd
 
-        # Build Docker image
+      # Build Docker image
       - name: Build Docker image
+        shell: bash
         run: |
           docker build -t carikk/quality-gate:latest .
 
-        # Push Docker image to DockerHub or other container registry
+      # Login to DockerHub
       - name: Log in to DockerHub
-        shell: powershell
+        shell: bash
         run: |
-          docker login -u "${{ secrets.DOCKER_USERNAME }}" -p "${{ secrets.DOCKER_PASSWORD }}"
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      # Push Docker image
       - name: Push Docker image
+        shell: bash
         run: |
           docker push carikk/quality-gate:latest
 
-
-      # Set up kubeconfig from secret
+      # Setup kubeconfig
       - name: Set up kubeconfig
+        shell: bash
         run: |
+          mkdir -p $HOME/.kube
           echo "${{ secrets.KUBECONFIG_CONTENT }}" > $HOME/.kube/config
-          kubectl config use-context docker-desktop  # Set context to docker-desktop
+          kubectl config use-context docker-desktop
           kubectl config set-context --current --namespace=ensakh
 
-      # Verify Kubernetes context
+      # Verify Kubernetes
       - name: Verify Kubernetes context
+        shell: bash
         run: |
           kubectl config current-context
           kubectl get namespaces
 
+      # Deploy to Kubernetes
       - name: Deploy to kube
+        shell: bash
         run: |
           kubectl apply -f k8s/deployment.yaml
 
-      - name: Verify Kubernetes context
+      # Verify deployment
+      - name: Verify Kubernetes deployment
+        shell: bash
         run: |
-          kubectl config current-context
           kubectl get nodes
           kubectl get namespaces
           kubectl get pods
