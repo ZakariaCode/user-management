@@ -69,7 +69,7 @@ jobs:
           echo "Logged in as: ${{ secrets.DOCKER_USERNAME }}"
           docker info | grep Username || echo "Warning: Username not found in docker info"
 
-      # Push Docker image
+      # Push Docker 
       - name: Push Docker image
         run: |
           docker push zak1234/quality-gate:latest
