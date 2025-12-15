@@ -31,7 +31,7 @@ jobs:
         with:
           maven-version: '3.9.9'
 
-      # Build and SonarQube analysis
+      # Build and SonarQube 
       - name: Build and analyze
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
