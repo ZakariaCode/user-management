@@ -75,22 +75,37 @@ jobs:
           docker push zak1234/quality-gate:latest
           docker push zak1234/quality-gate:${{ github.sha }}
 
-      # Setup kubeconfig
+     # Setup kubeconfig
       - name: Set up kubeconfig
         run: |
           mkdir -p $HOME/.kube
           echo "${{ secrets.KUBECONFIG_CONTENT }}" > $HOME/.kube/config
           chmod 600 $HOME/.kube/config
+          
+          # List available contexts
           echo "Available contexts:"
           kubectl config get-contexts
+          
+          # Get the first context name and use it
+          CONTEXT_NAME=$(kubectl config get-contexts -o name | head -n 1)
+          echo "Using context: $CONTEXT_NAME"
+          
+          # Set the current context
+          kubectl config use-context "$CONTEXT_NAME"
+          
+          # Set the namespace
           kubectl config set-context --current --namespace=ensakh
+          
+          echo "Current context set successfully"
 
       # Verify Kubernetes connection
       - name: Verify Kubernetes context
         run: |
           echo "Current context:"
           kubectl config current-context
-          echo -e "\nAvailable namespaces:"
+          echo -e "\nCurrent namespace:"
+          kubectl config view --minify --output 'jsonpath={..namespace}'
+          echo -e "\n\nAvailable namespaces:"
           kubectl get namespaces
           echo -e "\nCluster info:"
           kubectl cluster-info
@@ -114,6 +129,8 @@ jobs:
           kubectl get services -n ensakh
           echo -e "\nDeployment status:"
           kubectl get deployment quality-gate -n ensakh
+          echo -e "\nDeployment details:"
+          kubectl describe deployment quality-gate -n ensakh
 
       # Cleanup old images (optional)
       - name: Cleanup old Docker images
