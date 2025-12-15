@@ -75,80 +75,77 @@ jobs:
           docker push zak1234/quality-gate:latest
           docker push zak1234/quality-gate:${{ github.sha }}
 
-  # Setup kubeconfig
-      - name: Set up kubeconfig
+  # Install K3s if not present (lightweight Kubernetes)
+      - name: Setup K3s cluster
         run: |
-          mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBECONFIG_CONTENT }}" > $HOME/.kube/config
-          chmod 600 $HOME/.kube/config
-          
-          # Debug: Show the kubeconfig structure
-          echo "Kubeconfig structure:"
-          kubectl config view
-          
-          # Check if contexts exist and have names
-          CONTEXT_COUNT=$(kubectl config get-contexts -o name 2>/dev/null | wc -l)
-          
-          if [ "$CONTEXT_COUNT" -eq 0 ]; then
-            echo "No valid contexts found in kubeconfig"
-            echo "Attempting to fix kubeconfig..."
+          # Check if k3s is already installed
+          if ! command -v k3s &> /dev/null; then
+            echo "Installing K3s..."
+            curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode 644
             
-            # Get cluster and user info
-            CLUSTER_NAME=$(kubectl config view -o jsonpath='{.clusters[0].name}')
-            USER_NAME=$(kubectl config view -o jsonpath='{.users[0].name}')
-            
-            # Create a new context with a proper name
-            kubectl config set-context default-context \
-              --cluster="$CLUSTER_NAME" \
-              --user="$USER_NAME" \
-              --namespace=ensakh
-            
-            kubectl config use-context default-context
+            # Wait for k3s to be ready
+            echo "Waiting for K3s to be ready..."
+            sleep 30
+            sudo k3s kubectl wait --for=condition=Ready node --all --timeout=60s
           else
-            # Get the first valid context name
-            CONTEXT_NAME=$(kubectl config get-contexts -o name | head -n 1)
-            echo "Using existing context: $CONTEXT_NAME"
-            kubectl config use-context "$CONTEXT_NAME"
-            kubectl config set-context --current --namespace=ensakh
+            echo "K3s already installed"
           fi
           
-          echo "Current context set successfully"
+          # Setup kubeconfig
+          mkdir -p $HOME/.kube
+          sudo cp /etc/rancher/k3s/k3s.yaml $HOME/.kube/config
+          sudo chown $(id -u):$(id -g) $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+          
+          # Update server to localhost
+          sed -i 's/127.0.0.1/localhost/g' $HOME/.kube/config
 
-      # Verify Kubernetes connection
-      - name: Verify Kubernetes context
+      # Create namespace
+      - name: Create namespace
         run: |
-          echo "Current context:"
-          kubectl config current-context
-          echo -e "\nCurrent namespace:"
-          kubectl config view --minify --output 'jsonpath={..namespace}'
-          echo -e "\n\nAvailable namespaces:"
-          kubectl get namespaces
-          echo -e "\nCluster info:"
+          kubectl create namespace ensakh --dry-run=client -o yaml | kubectl apply -f -
+          kubectl config set-context --current --namespace=ensakh
+
+      # Verify Kubernetes
+      - name: Verify Kubernetes
+        run: |
+          echo "Cluster info:"
           kubectl cluster-info
+          
+          echo -e "\nNodes:"
+          kubectl get nodes
+          
+          echo -e "\nNamespaces:"
+          kubectl get namespaces
+          
+          echo -e "\nCurrent context:"
+          kubectl config current-context
 
       # Deploy to Kubernetes
       - name: Deploy to Kubernetes
         run: |
+          echo "Applying deployment..."
           kubectl apply -f k8s/deployment.yaml
+          
+          echo "Waiting for rollout..."
           kubectl rollout status deployment/quality-gate -n ensakh --timeout=5m
 
       # Verify deployment
-      - name: Verify Kubernetes deployment
+      - name: Verify deployment
         run: |
-          echo "Nodes:"
-          kubectl get nodes
-          echo -e "\nNamespaces:"
-          kubectl get namespaces
-          echo -e "\nPods in ensakh namespace:"
+          echo "Pods:"
           kubectl get pods -n ensakh
-          echo -e "\nServices in ensakh namespace:"
+          
+          echo -e "\nServices:"
           kubectl get services -n ensakh
-          echo -e "\nDeployment status:"
+          
+          echo -e "\nDeployment:"
           kubectl get deployment quality-gate -n ensakh
+          
           echo -e "\nDeployment details:"
           kubectl describe deployment quality-gate -n ensakh
 
-      # Cleanup old images (optional)
+      # Cleanup old images
       - name: Cleanup old Docker images
         if: success()
         run: |
