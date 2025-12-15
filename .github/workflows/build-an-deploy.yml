@@ -148,7 +148,6 @@ jobs:
       #     echo -e "\nDeployment details:"
       #     kubectl describe deployment quality-gate -n ensakh
 
-      # Cleanup old images (optional)
       - name: Cleanup old Docker images
         if: success()
         run: |
