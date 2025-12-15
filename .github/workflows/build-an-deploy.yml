@@ -56,7 +56,7 @@ jobs:
           docker build -t zak1234/quality-gate:latest .
           docker tag zak1234/quality-gate:latest zak1234/quality-gate:${{ github.sha }}
 
-      # Login to DockerHub
+      # Login to 
       - name: Log in to DockerHub
         uses: docker/login-action@v3
         with:
