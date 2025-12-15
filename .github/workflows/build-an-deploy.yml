@@ -42,7 +42,7 @@ jobs:
             -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
             -Dsonar.login=${{ secrets.SONAR_TOKEN }}
 
-      # Pull  Docker 
+      # Pull base Docker 
       - name: Pull base Docker image
         run: |
           docker pull eclipse-temurin:21-jdk-alpine || \
