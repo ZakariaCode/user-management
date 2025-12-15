@@ -81,7 +81,8 @@ jobs:
           mkdir -p $HOME/.kube
           echo "${{ secrets.KUBECONFIG_CONTENT }}" > $HOME/.kube/config
           chmod 600 $HOME/.kube/config
-          kubectl config use-context docker-desktop
+          echo "Available contexts:"
+          kubectl config get-contexts
           kubectl config set-context --current --namespace=ensakh
 
       # Verify Kubernetes connection
